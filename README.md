@@ -1,2 +1,2 @@
 # PyTorch-Practices
-SELF PyTorch Exercises And Practices
+Self PyTorch Exercises And Practices
