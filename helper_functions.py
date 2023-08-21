@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from torch import nn
-
 import os
 import zipfile
-
 from pathlib import Path
 
 import requests
+
+device="cuda" if torch.cuda.is_available() else "cpu"
 
 # Walk through an image classification directory and find out how many files (images)
 # are in each subdirectory.
@@ -292,3 +292,99 @@ def download_data(source: str,
             os.remove(data_path / target_file)
     
     return image_path
+
+from tqdm import tqdm
+
+def eval_model(model:torch.nn.Module,
+               data_loader: torch.utils.data.DataLoader,
+               loss_fn:torch.nn.Module,
+               accuracy_fn):
+    """ Returns a dictionary containing the results of model predicting on data_loader"""
+    loss,acc=0,0
+    model.eval()
+    with torch.inference_mode():
+        for X,y in tqdm(data_loader):
+            X,y=X.to(device),y.to(device)
+            #make preds
+            y_pred=model(X)
+
+            #Accumulate the loss and acc values per batch
+            loss += loss_fn(y_pred,y)
+            acc += accuracy_fn(y_true=y,
+                               y_pred=y_pred.argmax(dim=1))
+        # Scale loss and acc to find the avarage loss/ acc per batch
+        loss /= len(data_loader)
+        acc /= len(data_loader)
+
+    return {"model_name": model.__class__.__name__,#only works when model was created with a class
+            "model_loss": loss.item(),
+            "model_acc": acc}
+
+def train_step(model:torch.nn.Module,
+               data_loader:torch.utils.data.DataLoader,
+               loss_fn: torch.nn.Module,
+               optimizer: torch.optim.Optimizer,
+               accuracy_fn,
+               device:torch.device=device):
+    """Performs a training with model trying to learn on data_loader."""
+    train_loss,train_acc=0,0
+    
+    #Put model into training mode
+    model.train()
+
+    # Add a loop to loop through training batches X-> image, y->label(target)
+    for batch , (X,y) in enumerate(data_loader):
+        
+        #Put data on target device
+        X,y=X.to(device),y.to(device)
+        
+        #1. Forward pass (outputs the raw logits from the model)
+        y_pred=model(X)
+
+        #2. Calculate the loss
+        loss=loss_fn(y_pred,y)
+        train_loss +=loss #accumulate train loss
+        train_acc+=accuracy_fn(y_true=y,
+                               y_pred=y_pred.argmax(dim=1)) #go from logits->prediction labels
+        
+        #3. Optimizer zero grad
+        optimizer.zero_grad()
+
+        #4. Loss backward
+        loss.backward()
+
+        #5. Optimizer
+        optimizer.step() 
+
+    train_loss/=len(data_loader)
+    train_acc/=len(data_loader)
+    print(f"Train loss: {train_loss:.5f} | Train acc: {train_acc:.2f}%")
+
+def test_step(model:torch.nn.Module,
+              data_loader:torch.utils.data.DataLoader,
+              loss_fn:torch.nn.Module,
+              accuracy_fn,
+              device:torch.device=device):
+    """Performs a testing loop step on model going over data_loader."""
+    test_loss,test_acc=0,0
+
+    #Put model into eval mode
+    model.eval()
+
+    with torch.inference_mode():
+        for X,y in data_loader:
+            #Data into device
+            X,y=X.to(device),y.to(device)
+            
+            #1. Forward pass
+            test_pred=model(X)
+
+            #2. Calculate loss and acc(accumulatively)
+            test_loss+=loss_fn(test_pred,y)
+            test_acc+=accuracy_fn(y_true=y,
+                                  y_pred=test_pred.argmax(dim=1))
+            
+        # Calculate the test loss/acc average per patch
+        test_loss /= len(data_loader)
+        test_acc /= len(data_loader)
+        print(f"\nTest loss: {test_loss:.4f}, Test acc {test_acc:.4f}")
