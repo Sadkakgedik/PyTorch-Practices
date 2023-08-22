@@ -1,6 +1,4 @@
 *.jpg
 *.jpeg
 *.png
-data/pizza_steak_sushi
-data/pizza_steak_sushi.zip
-data/FashionMNIST
+data
