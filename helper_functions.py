@@ -388,3 +388,29 @@ def test_step(model:torch.nn.Module,
         test_loss /= len(data_loader)
         test_acc /= len(data_loader)
         print(f"\nTest loss: {test_loss:.4f}, Test acc {test_acc:.4f}")
+
+import random
+from PIL import Image
+
+def plot_transformed_images(image_paths,transform,n=3,seed=None):
+    """
+    Selects random images from a path of images and loads/transforms them,
+    then plots the original vs of the transformed version
+    """
+    if seed:
+        random.seed(seed)
+    random_image_paths=random.sample(image_paths,k=n)
+    for image_path in random_image_paths:
+        with Image.open(image_path) as f:
+            fig,ax=plt.subplots(nrows=1,ncols=2)
+            ax[0].imshow(f)
+            ax[0].set_title(f"Original\nSize:{f.size}")
+            ax[0].axis(False)
+
+            #Transform and plot target image
+            transformed_image=transform(f).permute(1,2,0) #Note we will need to change shape for matplotlib
+            ax[1].imshow(transformed_image)
+            ax[1].set_title(f"Transformed\nShape: {transformed_image.shape}")
+            ax[1].axis(False)
+
+            fig.suptitle(f"Class: {image_path.parent.stem}",fontsize=16)
